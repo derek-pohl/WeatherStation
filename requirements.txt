@@ -1,0 +1,6 @@
+Flask
+pymongo[srv]
+plotly
+pandas
+pytz
+python-dotenv
