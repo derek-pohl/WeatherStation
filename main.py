@@ -11,7 +11,6 @@ import pandas as pd
 import json
 from dotenv import load_dotenv # Import load_dotenv
 import math # For ceiling/floor
-import numpy as np # For checking numeric types robustly
 
 # --- Load Environment Variables ---
 # Load variables from .env file into environment variables
@@ -302,9 +301,6 @@ HTML_TEMPLATE = """
 @app.route('/')
 def index():
     """Main dashboard route."""
-    # --- Debug Logging ---
-    print("--- Entering index route ---")
-
     coll = connect_db()
     if coll is None:
         flash("Database connection failed. Please check server logs.", "danger")
@@ -319,12 +315,10 @@ def index():
     except ValueError:
         flash(f"Invalid time range format. Showing default {DEFAULT_HOURS} hours.", "warning")
         hours_to_show = DEFAULT_HOURS
-    print(f"Selected hours: {hours_to_show}") # --- Debug Logging ---
 
     # --- Fetch data based on selected hours ---
     now_utc = datetime.now(timezone.utc)
     start_time_utc = now_utc - timedelta(hours=hours_to_show)
-    print(f"Fetching data from: {start_time_utc}") # --- Debug Logging ---
 
     latest_reading_data = None
     stats_data = None
@@ -342,10 +336,6 @@ def index():
                 "temp_f": f"{temp_f_latest:.2f}" if isinstance(temp_f_latest, (int, float)) else "N/A",
                 "time_nyc": latest_time_nyc.strftime('%Y-%m-%d %I:%M:%S %p') if latest_time_nyc else "N/A"
             }
-            print(f"Latest reading fetched: {latest_reading_data}") # --- Debug Logging ---
-        else:
-            print("No latest reading document found.") # --- Debug Logging ---
-
 
         # Fetch data for the graph and stats
         cursor = coll.find(
@@ -354,35 +344,26 @@ def index():
         ).sort("timestamp", pymongo.ASCENDING)
 
         data = list(cursor)
-        print(f"Fetched {len(data)} data points for graph/stats.") # --- Debug Logging ---
 
         if data:
             df = pd.DataFrame(data)
-            # --- Data Cleaning and Conversion ---
-            print(f"DataFrame shape before cleaning: {df.shape}") # --- Debug Logging ---
             # Convert timestamp and drop errors
             df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
             df.dropna(subset=['timestamp'], inplace=True)
-            print(f"DataFrame shape after timestamp cleaning: {df.shape}") # --- Debug Logging ---
             # Convert temp to numeric and drop errors (important for min/max)
             df['average_temp_f'] = pd.to_numeric(df['average_temp_f'], errors='coerce')
             df.dropna(subset=['average_temp_f'], inplace=True)
-            print(f"DataFrame shape after temp cleaning: {df.shape}") # --- Debug Logging ---
 
 
             if not df.empty:
                 df['time_nyc'] = df['timestamp'].apply(convert_to_nyc_time)
                 df.dropna(subset=['time_nyc'], inplace=True)
-                print(f"DataFrame shape after timezone conversion: {df.shape}") # --- Debug Logging ---
-
 
                 if not df.empty:
                     # Calculate stats for the selected period (df)
                     min_temp = df['average_temp_f'].min()
                     max_temp = df['average_temp_f'].max()
                     avg_temp = df['average_temp_f'].mean()
-                    print(f"Calculated stats: Min={min_temp}, Max={max_temp}, Avg={avg_temp}") # --- Debug Logging ---
-
 
                     stats_data = {
                         # Format with TWO decimal places
@@ -392,26 +373,21 @@ def index():
                     }
 
                     # --- Calculate Y-axis range with padding ---
-                    y_min = None
-                    y_max = None
-                    # Check if min/max are valid numbers before calculating range
-                    if pd.notna(min_temp) and pd.notna(max_temp) and np.isfinite(min_temp) and np.isfinite(max_temp):
-                        if min_temp == max_temp:
-                            y_min = math.floor(min_temp - max(Y_AXIS_PADDING, 1))
-                            y_max = math.ceil(max_temp + max(Y_AXIS_PADDING, 1))
-                        else:
-                            y_min = math.floor(min_temp - Y_AXIS_PADDING)
-                            y_max = math.ceil(max_temp + Y_AXIS_PADDING)
-
-                        if y_min >= y_max:
-                            y_min = math.floor(y_max - 1)
-                            y_max = math.ceil(y_min + 1)
-
-                        y_axis_range = [y_min, y_max]
-                        print(f"Calculated y-axis range: {y_axis_range}") # --- Debug Logging ---
+                    if min_temp == max_temp: # Handle case with only one value or all same values
+                        # Use a slightly larger default padding if range is zero
+                        y_min = math.floor(min_temp - max(Y_AXIS_PADDING, 1))
+                        y_max = math.ceil(max_temp + max(Y_AXIS_PADDING, 1))
                     else:
-                        print("Could not calculate y-axis range due to invalid min/max values.") # --- Debug Logging ---
-                        y_axis_range = None # Ensure it's None if calculation fails
+                        y_min = math.floor(min_temp - Y_AXIS_PADDING)
+                        y_max = math.ceil(max_temp + Y_AXIS_PADDING)
+                    # Ensure min is not greater than max after padding if range is very small
+                    if y_min >= y_max:
+                         # Ensure at least a small range, adjust based on magnitude if needed
+                        y_min = math.floor(y_max - 1) if y_max > 0 else -1
+                        y_max = math.ceil(y_min + 1) if y_min < 100 else y_min + 1 # Avoid huge ranges if near zero
+
+                    y_axis_range = [y_min, y_max]
+                    # --- End Y-axis calculation ---
 
 
                     # Create Plotly graph for the selected period (df)
@@ -425,26 +401,18 @@ def index():
                         fill='tozeroy',
                         fillcolor='rgba(74, 144, 226, 0.1)'
                     ))
-
-                    fig_layout = {
-                        'xaxis_title': None,
-                        'yaxis_title': '°F',
-                        'margin': dict(l=40, r=10, t=10, b=20),
-                        'hovermode': "x unified",
-                        'template': "plotly_white",
-                        'paper_bgcolor': 'rgba(0,0,0,0)',
-                        'plot_bgcolor': 'rgba(0,0,0,0)',
-                        'xaxis': dict(showgrid=False),
-                        'yaxis': dict(gridcolor='#eef2f7')
-                    }
-                    # Only apply yaxis_range if it's valid
-                    if y_axis_range is not None and isinstance(y_axis_range, list) and len(y_axis_range) == 2:
-                        fig_layout['yaxis_range'] = y_axis_range
-                        print(f"Applying y-axis range to graph: {y_axis_range}") # --- Debug Logging ---
-                    else:
-                        print("Not applying y-axis range (auto-ranging).") # --- Debug Logging ---
-
-                    fig.update_layout(**fig_layout)
+                    fig.update_layout(
+                        xaxis_title=None,
+                        yaxis_title='°F',
+                        yaxis_range=y_axis_range, # Apply calculated range
+                        margin=dict(l=40, r=10, t=10, b=20), # Adjusted left margin for potential wider y-axis labels
+                        hovermode="x unified",
+                        template="plotly_white",
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        xaxis=dict(showgrid=False),
+                        yaxis=dict(gridcolor='#eef2f7')
+                    )
                     graph_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
                 else:
                     print(f"No valid data remaining after timezone conversion for the last {hours_to_show} hours.")
@@ -456,14 +424,10 @@ def index():
 
     except Exception as e:
         print(f"Error fetching or processing data: {e}", file=sys.stderr)
-        # Optionally include traceback for more detail in logs
-        import traceback
-        traceback.print_exc(file=sys.stderr)
-        flash(f"Error fetching or processing data. Check logs.", "warning")
+        flash(f"Error fetching or processing data: {e}", "warning")
         graph_json = {}
 
 
-    print("--- Exiting index route ---") # --- Debug Logging ---
     return render_template_string(
         HTML_TEMPLATE,
         graph_json=graph_json,
@@ -509,11 +473,9 @@ def delete_old_data():
 
 # --- Run the App ---
 if __name__ == '__main__':
-    # This block is NOT executed when deployed on Vercel with Gunicorn
-    # It's only for local development using `python weather_web_ui_modern.py`
-    print("Starting Flask development server locally...")
+    print("Starting Flask development server...")
     if connect_db() is None:
          print("\n--- Cannot start Flask server due to DB connection failure ---", file=sys.stderr)
          sys.exit(1)
-    # Changed debug=True for local testing ease, Vercel uses production settings
-    app.run(debug=True, host='127.0.0.1', port=5000, use_reloader=True)
+    app.run(debug=False, host='127.0.0.1', port=5000, use_reloader=True)
+
