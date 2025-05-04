@@ -4,3 +4,4 @@ plotly
 pandas
 pytz
 python-dotenv
+gunicorn

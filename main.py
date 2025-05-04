@@ -226,7 +226,7 @@ HTML_TEMPLATE = """
             <div class="col-lg-4 col-md-6">
                 <div class="card text-center h-100"> <div class="card-header"><i class="bi bi-thermometer-half"></i>Latest Reading</div>
                     <div class="card-body d-flex flex-column justify-content-center"> {% if latest_reading %}
-                            <p class="stat-value mb-1">{{ latest_reading.temp_f }} °F</p> {# Already uses .1f formatting from backend #}
+                            <p class="stat-value mb-1">{{ latest_reading.temp_f }} °F</p> {# Updated to .2f formatting from backend #}
                             <p class="timestamp mt-1">Recorded: {{ latest_reading.time_nyc }} (NYC)</p>
                         {% else %}
                             <p class="text-muted my-auto">No recent data available.</p> {% endif %}
@@ -239,13 +239,13 @@ HTML_TEMPLATE = """
                     <div class="card-header"><i class="bi bi-graph-up"></i>Last {{ selected_hours }} Hour{% if selected_hours != 1 %}s{% endif %} Statistics (°F)</div> {# Handle plural 'Hours' #}
                     <div class="card-body d-flex align-items-center"> {% if stats %}
                         <div class="row text-center w-100"> <div class="col">
-                                <strong>Min:</strong><br><span class="stat-value">{{ stats.min_f }}</span> {# Already uses .1f formatting from backend #}
+                                <strong>Min:</strong><br><span class="stat-value">{{ stats.min_f }}</span> {# Updated to .2f formatting from backend #}
                             </div>
                             <div class="col">
-                                <strong>Avg:</strong><br><span class="stat-value">{{ stats.avg_f }}</span> {# Already uses .1f formatting from backend #}
+                                <strong>Avg:</strong><br><span class="stat-value">{{ stats.avg_f }}</span> {# Updated to .2f formatting from backend #}
                             </div>
                             <div class="col">
-                                <strong>Max:</strong><br><span class="stat-value">{{ stats.max_f }}</span> {# Already uses .1f formatting from backend #}
+                                <strong>Max:</strong><br><span class="stat-value">{{ stats.max_f }}</span> {# Updated to .2f formatting from backend #}
                             </div>
                         </div>
                         {% else %}
@@ -332,8 +332,8 @@ def index():
             latest_time_nyc = convert_to_nyc_time(latest_doc.get('timestamp'))
             temp_f_latest = latest_doc.get('average_temp_f')
             latest_reading_data = {
-                # Format with one decimal place
-                "temp_f": f"{temp_f_latest:.1f}" if isinstance(temp_f_latest, (int, float)) else "N/A",
+                # Format with TWO decimal places
+                "temp_f": f"{temp_f_latest:.2f}" if isinstance(temp_f_latest, (int, float)) else "N/A",
                 "time_nyc": latest_time_nyc.strftime('%Y-%m-%d %I:%M:%S %p') if latest_time_nyc else "N/A"
             }
 
@@ -366,22 +366,25 @@ def index():
                     avg_temp = df['average_temp_f'].mean()
 
                     stats_data = {
-                        # Format with one decimal place
-                        "min_f": f"{min_temp:.1f}",
-                        "avg_f": f"{avg_temp:.1f}",
-                        "max_f": f"{max_temp:.1f}"
+                        # Format with TWO decimal places
+                        "min_f": f"{min_temp:.2f}",
+                        "avg_f": f"{avg_temp:.2f}",
+                        "max_f": f"{max_temp:.2f}"
                     }
 
                     # --- Calculate Y-axis range with padding ---
                     if min_temp == max_temp: # Handle case with only one value or all same values
-                        y_min = math.floor(min_temp - Y_AXIS_PADDING)
-                        y_max = math.ceil(max_temp + Y_AXIS_PADDING)
+                        # Use a slightly larger default padding if range is zero
+                        y_min = math.floor(min_temp - max(Y_AXIS_PADDING, 1))
+                        y_max = math.ceil(max_temp + max(Y_AXIS_PADDING, 1))
                     else:
                         y_min = math.floor(min_temp - Y_AXIS_PADDING)
                         y_max = math.ceil(max_temp + Y_AXIS_PADDING)
                     # Ensure min is not greater than max after padding if range is very small
                     if y_min >= y_max:
-                        y_min = y_max - 1 # Ensure at least 1 degree range
+                         # Ensure at least a small range, adjust based on magnitude if needed
+                        y_min = math.floor(y_max - 1) if y_max > 0 else -1
+                        y_max = math.ceil(y_min + 1) if y_min < 100 else y_min + 1 # Avoid huge ranges if near zero
 
                     y_axis_range = [y_min, y_max]
                     # --- End Y-axis calculation ---
@@ -402,7 +405,7 @@ def index():
                         xaxis_title=None,
                         yaxis_title='°F',
                         yaxis_range=y_axis_range, # Apply calculated range
-                        margin=dict(l=30, r=10, t=10, b=20),
+                        margin=dict(l=40, r=10, t=10, b=20), # Adjusted left margin for potential wider y-axis labels
                         hovermode="x unified",
                         template="plotly_white",
                         paper_bgcolor='rgba(0,0,0,0)',
