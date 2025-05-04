@@ -2,15 +2,18 @@
     "version": 2,
     "builds": [
       {
-        "src": "main.py", // Your main Python file
+        "src": "main.py",
         "use": "@vercel/python",
-        "config": { "maxLambdaSize": "15mb" }
+        "config": {
+          "maxLambdaSize": "15mb"
+        }
       }
     ],
     "routes": [
       {
-        "src": "/(.*)", // Match all routes
-        "dest": "main.py" // Route them to your Python file
+        "src": "/(.*)",
+        "dest": "main.py"
       }
     ]
   }
+  
