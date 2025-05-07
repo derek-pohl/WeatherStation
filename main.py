@@ -11,6 +11,7 @@ import pandas as pd
 import json
 from dotenv import load_dotenv # Import load_dotenv
 import math # For ceiling/floor
+import hmac # For secure password comparison
 
 # --- Load Environment Variables ---
 # Load variables from .env file into environment variables
@@ -20,6 +21,7 @@ load_dotenv()
 # Read configuration from environment variables
 MONGO_URI = os.environ.get("MONGO_URI")
 FLASK_SECRET_KEY = os.environ.get("FLASK_SECRET_KEY")
+CLEAR_DATA_PASSWORD = os.environ.get("CLEAR_DATA_PASSWORD")
 
 # Check if essential variables are loaded
 if not MONGO_URI:
@@ -28,6 +30,9 @@ if not MONGO_URI:
 if not FLASK_SECRET_KEY:
      print("Warning: FLASK_SECRET_KEY not found in environment or .env. Using default (insecure).", file=sys.stderr)
      FLASK_SECRET_KEY = "default_dev_secret_key_highly_insecure" # Fallback only for immediate running
+if not CLEAR_DATA_PASSWORD:
+    print("FATAL ERROR: CLEAR_DATA_PASSWORD not found in environment variables or .env file. Exiting.", file=sys.stderr)
+    sys.exit(1)
 
 
 DATABASE_NAME = "Weather" # Can be env vars too
@@ -264,9 +269,14 @@ HTML_TEMPLATE = """
         <div class="card">
             <div class="card-header"><i class="bi bi-database-fill-gear"></i>Data Management</div>
             <div class="card-body">
-                <form action="{{ url_for('delete_old_data', hours=selected_hours) }}" method="post"> <div class="mb-3">
+                <form action="{{ url_for('delete_old_data', hours=selected_hours) }}" method="post">
+                    <div class="mb-3">
                         <label for="days_old" class="form-label">Delete data older than (days):</label>
                         <input type="number" class="form-control" id="days_old" name="days_old" min="1" value="30" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="clear_data_password" class="form-label">Enter Password to Delete:</label>
+                        <input type="password" class="form-control" id="clear_data_password" name="clear_data_password" required>
                     </div>
                     <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete old data? This cannot be undone.');">
                        <i class="bi bi-trash-fill me-1"></i> Delete Old Data
@@ -447,6 +457,18 @@ def delete_old_data():
 
     if coll is None:
         flash("Database connection failed. Cannot delete data.", "danger")
+        return redirect(redirect_url)
+
+    submitted_password = request.form.get('clear_data_password')
+    stored_password = CLEAR_DATA_PASSWORD
+
+    if not submitted_password or not stored_password:
+        flash("Password configuration error.", "danger")
+        return redirect(redirect_url)
+
+    # Securely compare passwords
+    if not hmac.compare_digest(submitted_password.encode('utf-8'), stored_password.encode('utf-8')):
+        flash("Invalid password. Data not deleted.", "danger")
         return redirect(redirect_url)
 
     try:
