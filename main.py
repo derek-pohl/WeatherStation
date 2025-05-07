@@ -393,8 +393,8 @@ def index():
                     # Create Plotly graph for the selected period (df)
                     fig = go.Figure()
                     fig.add_trace(go.Scatter(
-                        x=df['time_nyc'],
-                        y=df['average_temp_f'],
+                        x=df['time_nyc'].tolist(),         # <--- FIX APPLIED HERE
+                        y=df['average_temp_f'].tolist(), # <--- FIX APPLIED HERE
                         mode='lines',
                         name='Temperature (°F)',
                         line=dict(color='#4a90e2', width=2.5),
@@ -478,4 +478,3 @@ if __name__ == '__main__':
          print("\n--- Cannot start Flask server due to DB connection failure ---", file=sys.stderr)
          sys.exit(1)
     app.run(debug=False, host='127.0.0.1', port=5000, use_reloader=True)
-
