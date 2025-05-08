@@ -233,14 +233,14 @@ HTML_TEMPLATE = """
                 <form action="{{ url_for('delete_old_data', hours=selected_hours, autorefresh=request.args.get('autorefresh', 'false')) }}" method="post">
                     <div class="mb-3">
                         <label for="days_old" class="form-label">Delete data older than (days):</label>
-                        <input type="number" class="form-control" id="days_old" name="days_old" min="1" value="30" required>
+                        <input type="number" class="form-control" id="days_old" name="days_old" min="0" value="30" required>
                     </div>
                     <div class="mb-3">
                         <label for="clear_data_password" class="form-label">Enter Password to Delete:</label>
                         <input type="password" class="form-control" id="clear_data_password" name="clear_data_password" required>
                     </div>
-                    <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete old data? This cannot be undone.');">
-                        <i class="bi bi-trash-fill me-1"></i> Delete Old Data
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete data? This cannot be undone.');">
+                        <i class="bi bi-trash-fill me-1"></i> Delete Data
                     </button>
                 </form>
             </div>
@@ -502,17 +502,33 @@ def delete_old_data():
         return redirect(redirect_url)
 
     try:
-        days_old = int(request.form.get('days_old', 0))
-        if days_old <= 0:
-            flash("Please provide a positive number of days.", "warning")
+        days_old_str = request.form.get('days_old')
+        if days_old_str is None:
+            flash("Number of days not provided.", "danger")
+            return redirect(redirect_url)
+            
+        days_old = int(days_old_str)
+
+        if days_old < 0:
+            flash("Please provide a non-negative number of days.", "warning")
             return redirect(redirect_url)
 
-        cutoff_date_utc = datetime.now(timezone.utc) - timedelta(days=days_old)
-        print(f"Attempting to delete documents older than {days_old} days (before {cutoff_date_utc.strftime('%Y-%m-%d %H:%M:%S UTC')})...")
-        result = coll.delete_many({"timestamp": {"$lt": cutoff_date_utc}})
-        deleted_count = result.deleted_count
-        flash(f"Successfully deleted {deleted_count} old record(s) older than {days_old} days.", "success")
-        print(f"Deletion successful. {deleted_count} records removed.")
+        if days_old == 0:
+            # Delete all data
+            print(f"Attempting to delete ALL documents...")
+            result = coll.delete_many({}) # Empty filter deletes all
+            deleted_count = result.deleted_count
+            flash(f"Successfully deleted all {deleted_count} record(s).", "success")
+            print(f"Deletion of all data successful. {deleted_count} records removed.")
+        else:
+            # Delete data older than 'days_old'
+            cutoff_date_utc = datetime.now(timezone.utc) - timedelta(days=days_old)
+            print(f"Attempting to delete documents older than {days_old} days (before {cutoff_date_utc.strftime('%Y-%m-%d %H:%M:%S UTC')})...")
+            result = coll.delete_many({"timestamp": {"$lt": cutoff_date_utc}})
+            deleted_count = result.deleted_count
+            flash(f"Successfully deleted {deleted_count} old record(s) older than {days_old} days.", "success")
+            print(f"Deletion successful. {deleted_count} records removed.")
+
     except ValueError:
         flash("Invalid number of days provided. Please enter a whole number.", "danger")
     except Exception as e:
