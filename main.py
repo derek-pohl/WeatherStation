@@ -98,41 +98,76 @@ HTML_TEMPLATE = """
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: #eef2f7; color: #333; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding-top: 15px; padding-bottom: 15px; background-color: #eef2f7; color: #333; }
         .container { max-width: 1140px; }
-        .card { margin-bottom: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.08); border: none; border-radius: 0.75rem; background-color: #fff; }
-        .card-header { background-color: #4a90e2; color: white; font-weight: 600; border-top-left-radius: 0.75rem; border-top-right-radius: 0.75rem; padding: 0.8rem 1.2rem; display: flex; align-items: center; gap: 8px; }
+        .card { margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.08); border: none; border-radius: 0.75rem; background-color: #fff; }
+        .card-header { background-color: #4a90e2; color: white; font-weight: 600; border-top-left-radius: 0.75rem; border-top-right-radius: 0.75rem; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 8px; }
         .card-header .bi { font-size: 1.1rem; vertical-align: middle; }
-        .stat-value { font-size: 1.8rem; font-weight: 700; color: #2c3e50; }
-        .timestamp { font-size: 0.85rem; color: #7f8c8d; }
-        #plotly-graph { height: 450px; border-radius: 0 0 0.75rem 0.75rem; }
+        .stat-value { font-size: 1.7rem; font-weight: 700; color: #2c3e50; }
+        .timestamp { font-size: 0.8rem; color: #7f8c8d; }
+        #plotly-graph { min-height: 350px; border-radius: 0 0 0.75rem 0.75rem; } /* Adjusted min-height */
         .alert { margin-top: 15px; border-radius: 0.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .btn { border-radius: 0.4rem; padding: 0.5rem 1rem; font-weight: 500; }
         .btn-danger { background-color: #e74c3c; border-color: #e74c3c; }
         .btn-danger:hover { background-color: #c0392b; border-color: #c0392b; }
         .form-control, .form-select, .form-check-input { border-radius: 0.4rem; border: 1px solid #ced4da; }
-        .controls-row {
-            display: flex;
-            align-items: center;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap; 
-            gap: 15px; 
+        .controls-card {
             background-color: #fff;
-            padding: 1rem 1.5rem;
+            padding: 1rem 1.25rem;
             border-radius: 0.75rem;
             box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
         }
-        .controls-row label, .controls-row .data-label { font-weight: 500; margin-bottom: 0; white-space: nowrap; }
-        .controls-row .data-value { font-weight: bold; color: #2c3e50; white-space: nowrap; }
+        .controls-form-group {
+            display: flex;
+            flex-direction: column; /* Stack form and its items vertically on all screens */
+            gap: 10px; /* Gap between form and data points when stacked */
+        }
+        .form-items-group {
+            display: flex;
+            flex-wrap: wrap; /* Allow items to wrap */
+            align-items: center;
+            gap: 10px; /* Gap between individual form items */
+        }
+         .data-points-group {
+            display: flex;
+            flex-direction: column; /* Stack data points vertically */
+            gap: 8px; /* Gap between data points */
+        }
+        .controls-form-group label, .data-label { font-weight: 500; margin-bottom: 0; white-space: nowrap; }
+        .data-value { font-weight: bold; color: #2c3e50; white-space: normal; } /* Allow wrapping */
         .form-check-label { font-weight: normal !important; }
-        h1 { color: #34495e; font-weight: 600; }
+        h1.dashboard-title { color: #34495e; font-weight: 600; }
         .control-item { display: flex; align-items: center; gap: 0.5rem; } 
-        .time-suffix { font-size: 0.9em; color: #555; margin-left: 0.25rem;}
+        .time-suffix { font-size: 0.85em; color: #555; margin-left: 0.25rem;}
+
+        @media (min-width: 768px) { /* Medium screens and up */
+            .controls-form-group {
+                flex-direction: row; /* Side-by-side layout */
+                justify-content: space-between; /* Space out form and data points */
+                align-items: center;
+            }
+            .data-points-group {
+                flex-direction: column; /* Still stack data points on right */
+                align-items: flex-end; /* Align data points to the right */
+                gap: 5px;
+            }
+            .form-items-group {
+                 flex-wrap: nowrap; /* Prevent wrapping on larger screens */
+            }
+            h1.dashboard-title { text-align: left !important; }
+        }
+        @media (max-width: 575.98px) { /* Extra small screens */
+            .stat-value { font-size: 1.5rem; }
+            .card-body { padding: 0.8rem; }
+            .card-header { padding: 0.6rem 0.9rem; }
+             h1.dashboard-title { font-size: 1.75rem; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1 class="mb-4 text-center">Weather Station Dashboard</h1>
+        <h1 class="mb-3 mb-md-4 text-center dashboard-title">Weather Station Dashboard</h1>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -146,74 +181,79 @@ HTML_TEMPLATE = """
             {% endif %}
         {% endwith %}
 
-        <div class="controls-row">
-            <form id="settingsForm" method="get" action="{{ url_for('index') }}" class="d-flex align-items-center flex-wrap gap-3 me-auto">
-                <div class="control-item">
-                    <label for="hoursSelect" class="form-label"><i class="bi bi-clock me-1"></i>Show Last:</label>
-                    <select class="form-select" id="hoursSelect" name="hours" style="width: auto;" onchange="document.getElementById('settingsForm').submit()">
-                        {% for h in allowed_hours %}
-                            <option value="{{ h }}" {% if h == selected_hours %}selected{% endif %}>{{ h }} Hour{% if h != 1 %}s{% endif %}</option>
-                        {% endfor %}
-                    </select>
+        <div class="controls-card">
+            <div class="controls-form-group">
+                <form id="settingsForm" method="get" action="{{ url_for('index') }}" class="form-items-group">
+                    <div class="control-item">
+                        <label for="hoursSelect" class="form-label"><i class="bi bi-clock me-1"></i>Show Last:</label>
+                        <select class="form-select form-select-sm" id="hoursSelect" name="hours" style="width: auto;" onchange="document.getElementById('settingsForm').submit()">
+                            {% for h in allowed_hours %}
+                                <option value="{{ h }}" {% if h == selected_hours %}selected{% endif %}>{{ h }} Hr{% if h != 1 %}s{% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-check form-switch control-item">
+                        <input class="form-check-input" type="checkbox" role="switch" id="autoRefreshSwitch" name="autorefresh" value="true" {% if autorefresh_enabled %}checked{% endif %} onchange="document.getElementById('settingsForm').submit()">
+                        <label class="form-check-label ms-1" for="autoRefreshSwitch"><i class="bi bi-arrow-repeat me-1"></i>Auto-refresh</label>
+                    </div>
+                    <noscript><button type="submit" class="btn btn-primary btn-sm">Update</button></noscript>
+                </form>
+
+                <div class="data-points-group">
+                    <div class="control-item">
+                        <span class="data-label"><i class="bi bi-activity me-1"></i>Current Avg (5m):</span>
+                        <span class="data-value">{% if current_rolling_avg %}{{ current_rolling_avg }} °F{% else %}N/A{% endif %}</span>
+                    </div>
+                    <div class="control-item">
+                        <span class="data-label"><i class="bi bi-graph-up-arrow me-1"></i>Highest Avg ({{selected_hours}}h):</span>
+                        <span class="data-value">
+                            {% if highest_rolling_avg_period %}
+                                {{ highest_rolling_avg_period }} °F
+                                {% if highest_rolling_avg_time %}
+                                    <span class="time-suffix">at {{ highest_rolling_avg_time }}</span>
+                                {% endif %}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </span>
+                    </div>
                 </div>
-                <div class="form-check form-switch control-item">
-                    <input class="form-check-input" type="checkbox" role="switch" id="autoRefreshSwitch" name="autorefresh" value="true" {% if autorefresh_enabled %}checked{% endif %} onchange="document.getElementById('settingsForm').submit()">
-                    <label class="form-check-label ms-1" for="autoRefreshSwitch"><i class="bi bi-arrow-repeat me-1"></i>Auto-refresh</label>
-                </div>
-                <noscript><button type="submit" class="btn btn-primary btn-sm">Update View</button></noscript>
-            </form>
-            <div class="control-item">
-                <span class="data-label"><i class="bi bi-activity me-1"></i>Current 5-Min Avg:</span>
-                <span class="data-value">{% if current_rolling_avg %}{{ current_rolling_avg }} °F{% else %}N/A{% endif %}</span>
-            </div>
-            <div class="control-item">
-                <span class="data-label"><i class="bi bi-graph-up-arrow me-1"></i>Highest 5-Min Avg ({{selected_hours}}h):</span>
-                <span class="data-value">
-                    {% if highest_rolling_avg_period %}
-                        {{ highest_rolling_avg_period }} °F
-                        {% if highest_rolling_avg_time %}
-                            <span class="time-suffix">at {{ highest_rolling_avg_time }}</span>
-                        {% endif %}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </span>
             </div>
         </div>
 
         <div class="row">
-            <div class="col-lg-4 col-md-6">
+            <div class="col-12 col-md-4 mb-3 mb-md-0">
                 <div class="card text-center h-100">
                     <div class="card-header"><i class="bi bi-thermometer-half"></i>Latest Reading</div>
-                    <div class="card-body d-flex flex-column justify-content-center">
+                    <div class="card-body d-flex flex-column justify-content-center p-3">
                         {% if latest_reading %}
                             <p class="stat-value mb-1">{{ latest_reading.temp_f }} °F</p>
-                            <p class="timestamp mt-1">Recorded: {{ latest_reading.time_nyc }} (NYC)</p>
+                            <p class="timestamp mt-1 mb-0">Recorded: {{ latest_reading.time_nyc }} (NYC)</p>
                         {% else %}
-                            <p class="text-muted my-auto">No recent data available.</p>
+                            <p class="text-muted my-auto">No recent data.</p>
                         {% endif %}
                     </div>
                 </div>
             </div>
 
-            <div class="col-lg-8 col-md-6">
+            <div class="col-12 col-md-8">
                 <div class="card h-100">
                     <div class="card-header"><i class="bi bi-graph-up"></i>Last {{ selected_hours }} Hour{% if selected_hours != 1 %}s{% endif %} Statistics (°F)</div>
-                    <div class="card-body d-flex align-items-center">
+                    <div class="card-body d-flex align-items-center p-3">
                         {% if stats %}
-                        <div class="row text-center w-100">
-                            <div class="col">
+                        <div class="row text-center w-100 gy-2 gy-sm-0">
+                            <div class="col-12 col-sm-4">
                                 <strong>Min:</strong><br><span class="stat-value">{{ stats.min_f }}</span>
                             </div>
-                            <div class="col">
+                            <div class="col-12 col-sm-4">
                                 <strong>Avg:</strong><br><span class="stat-value">{{ stats.avg_f }}</span>
                             </div>
-                            <div class="col">
+                            <div class="col-12 col-sm-4">
                                 <strong>Max:</strong><br><span class="stat-value">{{ stats.max_f }}</span>
                             </div>
                         </div>
                         {% else %}
-                            <p class="text-muted mx-auto my-auto">Not enough data for statistics.</p>
+                            <p class="text-muted mx-auto my-auto">Not enough data.</p>
                         {% endif %}
                     </div>
                 </div>
@@ -234,12 +274,13 @@ HTML_TEMPLATE = """
                     <div class="mb-3">
                         <label for="days_old" class="form-label">Delete data older than (days):</label>
                         <input type="number" class="form-control" id="days_old" name="days_old" min="0" value="30" required>
+                         <div class="form-text">Enter 0 to delete all data.</div>
                     </div>
                     <div class="mb-3">
-                        <label for="clear_data_password" class="form-label">Enter Password to Delete:</label>
+                        <label for="clear_data_password" class="form-label">Password to Delete:</label>
                         <input type="password" class="form-control" id="clear_data_password" name="clear_data_password" required>
                     </div>
-                    <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete data? This cannot be undone.');">
+                    <button type="submit" class="btn btn-danger w-100 w-sm-auto" onclick="return confirm('Are you sure you want to delete data? This cannot be undone.');">
                         <i class="bi bi-trash-fill me-1"></i> Delete Data
                     </button>
                 </form>
@@ -251,14 +292,26 @@ HTML_TEMPLATE = """
     <script>
         var graphData = {{ graph_json | safe }};
         if (graphData && graphData.data && graphData.data.length > 0) {
-            var layout = graphData.layout || {};
-            layout.autosize = true; 
-            Plotly.newPlot('plotly-graph', graphData.data, layout, {responsive: true});
+            var defaultLayout = {
+                autosize: true,
+                margin: { l: 40, r: 20, t: 20, b: 30 }, // Adjusted margins for mobile
+                hovermode: "x unified",
+                template: "plotly_white",
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                xaxis: { showgrid: true, gridcolor: '#f0f0f0', tickformat: '%I:%M %p' },
+                yaxis: { gridcolor: '#e0e0e0', title: '°F' },
+                legend: { yanchor: "top", y: 0.99, xanchor: "left", x: 0.01, bgcolor: 'rgba(255,255,255,0.7)' }
+            };
+            var finalLayout = Object.assign({}, defaultLayout, graphData.layout); // Merge with incoming layout
+
+            Plotly.newPlot('plotly-graph', graphData.data, finalLayout, {responsive: true});
+            
             window.addEventListener('resize', function() {
                 Plotly.Plots.resize('plotly-graph');
             });
         } else {
-            document.getElementById('plotly-graph').innerHTML = '<p class="text-center text-muted p-5">No data available to display graph for the selected period.</p>';
+            document.getElementById('plotly-graph').innerHTML = '<p class="text-center text-muted p-4 p-md-5">No data available to display graph for the selected period.</p>';
         }
 
         const autoRefreshEnabled = {{ autorefresh_enabled | tojson }};
@@ -267,7 +320,6 @@ HTML_TEMPLATE = """
 
         async function checkForNewData() {
             if (!autoRefreshEnabled) return;
-            // console.log("Checking for new data...", new Date().toLocaleTimeString());
             try {
                 const response = await fetch("{{ url_for('check_latest_data_timestamp') }}");
                 if (!response.ok) {
@@ -296,7 +348,7 @@ HTML_TEMPLATE = """
 
         if (autoRefreshEnabled) {
             console.log("Auto-refresh enabled. Checking every 60 seconds. Current page data timestamp:", currentPageTimestampISO);
-            refreshIntervalId = setInterval(checkForNewData, 60000);
+            refreshIntervalId = setInterval(checkForNewData, 60000); // Check every 60 seconds
         }
     </script>
 </body>
@@ -313,7 +365,7 @@ def index():
                                       selected_hours=DEFAULT_HOURS, allowed_hours=ALLOWED_HOURS,
                                       autorefresh_enabled=False, latest_doc_timestamp_iso=None,
                                       current_rolling_avg=None, highest_rolling_avg_period=None,
-                                      highest_rolling_avg_time=None) # Added new var
+                                      highest_rolling_avg_time=None)
 
     try:
         hours_to_show = int(request.args.get('hours', DEFAULT_HOURS))
@@ -336,20 +388,20 @@ def index():
     latest_doc_timestamp_iso = None
     current_rolling_avg_val = None
     highest_rolling_avg_period_val = None
-    highest_rolling_avg_time_val = None # For storing the formatted time string
+    highest_rolling_avg_time_val = None 
 
     try:
         latest_doc_for_timestamp = coll.find_one(sort=[("timestamp", pymongo.DESCENDING)])
         if latest_doc_for_timestamp and 'timestamp' in latest_doc_for_timestamp:
             latest_doc_timestamp_iso = latest_doc_for_timestamp['timestamp'].isoformat()
 
-        latest_doc = latest_doc_for_timestamp
+        latest_doc = latest_doc_for_timestamp # Use the already fetched doc
         if latest_doc:
             latest_time_nyc = convert_to_nyc_time(latest_doc.get('timestamp'))
             temp_f_latest = latest_doc.get('average_temp_f')
             latest_reading_data = {
                 "temp_f": f"{temp_f_latest:.2f}" if isinstance(temp_f_latest, (int, float)) else "N/A",
-                "time_nyc": latest_time_nyc.strftime('%I:%M:%S %p') if latest_time_nyc else "N/A", # Already 12hr
+                "time_nyc": latest_time_nyc.strftime('%I:%M:%S %p') if latest_time_nyc else "N/A",
                 "timestamp_utc_iso": latest_doc.get('timestamp').isoformat() if latest_doc.get('timestamp') else None
             }
 
@@ -362,16 +414,16 @@ def index():
         if data:
             df = pd.DataFrame(data)
             df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-            df.dropna(subset=['timestamp'], inplace=True)
+            df.dropna(subset=['timestamp'], inplace=True) # Ensure timestamp is valid
             df['average_temp_f'] = pd.to_numeric(df['average_temp_f'], errors='coerce')
-            df.dropna(subset=['average_temp_f'], inplace=True)
+            df.dropna(subset=['average_temp_f'], inplace=True) # Ensure temp is valid
 
             if not df.empty:
                 df['time_nyc'] = df['timestamp'].apply(lambda x: convert_to_nyc_time(x))
-                df.dropna(subset=['time_nyc'], inplace=True)
-                df.sort_values('time_nyc', inplace=True)
+                df.dropna(subset=['time_nyc'], inplace=True) # Ensure time_nyc is valid
+                df.sort_values('time_nyc', inplace=True) # Sort by NYC time for correct plotting and rolling avg
 
-                if not df.empty:
+                if not df.empty: # Check again after potential drops
                     min_temp = df['average_temp_f'].min()
                     max_temp = df['average_temp_f'].max()
                     avg_temp = df['average_temp_f'].mean()
@@ -381,75 +433,72 @@ def index():
                         "max_f": f"{max_temp:.2f}" if pd.notna(max_temp) else "N/A"
                     }
 
+                    # Calculate rolling average based on NYC time-indexed series
                     df_for_rolling = df.set_index('time_nyc')
                     if not df_for_rolling.index.is_monotonic_increasing:
-                        df_for_rolling = df_for_rolling.sort_index()
+                         df_for_rolling = df_for_rolling.sort_index() # Ensure monotonic index
                     
                     rolling_series = df_for_rolling['average_temp_f'].rolling(window=ROLLING_AVG_WINDOW, min_periods=1).mean()
                     
-                    non_na_rolling_series = rolling_series.dropna()
+                    non_na_rolling_series = rolling_series.dropna() # Drop NaN before finding max
                     if not non_na_rolling_series.empty:
+                        # Get current rolling average (last valid point in the original df's timeframe)
                         last_actual_time_nyc = df['time_nyc'].iloc[-1]
-                        if last_actual_time_nyc in rolling_series.index: # Check if the time exists in the rolling series index
+                        # Find the closest available index in rolling_series if exact match isn't found
+                        # This handles cases where rolling window might not align perfectly with last data point
+                        if last_actual_time_nyc in rolling_series.index:
                             current_val_raw = rolling_series.loc[last_actual_time_nyc]
                             if pd.notna(current_val_raw):
                                 current_rolling_avg_val = f"{current_val_raw:.2f}"
+                        elif not rolling_series.empty: # Fallback to the very last rolling avg value if direct match fails
+                             current_val_raw = rolling_series.iloc[-1]
+                             if pd.notna(current_val_raw):
+                                current_rolling_avg_val = f"{current_val_raw:.2f}"
                         
-                        max_roll_raw = non_na_rolling_series.max() # Use non_na_rolling_series for max
+                        max_roll_raw = non_na_rolling_series.max()
                         if pd.notna(max_roll_raw):
                             highest_rolling_avg_period_val = f"{max_roll_raw:.2f}"
-                            # Get the timestamp of the max value
-                            time_of_max_roll = non_na_rolling_series.idxmax() # idxmax on non_na series
-                            if isinstance(time_of_max_roll, pd.Timestamp): # Ensure it's a timestamp object
-                                highest_rolling_avg_time_val = time_of_max_roll.strftime('%I:%M %p')
+                            time_of_max_roll = non_na_rolling_series.idxmax()
+                            if isinstance(time_of_max_roll, pd.Timestamp):
+                                highest_rolling_avg_time_val = time_of_max_roll.strftime('%I:%M %p') # 12hr format
                     
+                    # Y-axis padding and range calculation
                     if pd.notna(min_temp) and pd.notna(max_temp):
-                        if min_temp == max_temp:
-                            y_min_calc = math.floor(min_temp - max(Y_AXIS_PADDING, 1))
-                            y_max_calc = math.ceil(max_temp + max(Y_AXIS_PADDING, 1))
-                        else:
-                            y_min_calc = math.floor(min_temp - Y_AXIS_PADDING)
-                            y_max_calc = math.ceil(max_temp + Y_AXIS_PADDING)
-                        if y_min_calc >= y_max_calc:
-                            y_min_calc = math.floor(y_max_calc - 1) if y_max_calc > 0 else -1
-                            y_max_calc = math.ceil(y_min_calc + 1) if y_min_calc < 100 else y_min_calc + 1
+                        y_min_calc = math.floor(min_temp - Y_AXIS_PADDING)
+                        y_max_calc = math.ceil(max_temp + Y_AXIS_PADDING)
+                        if min_temp == max_temp: # Handle case with single data point or all same values
+                            y_min_calc = math.floor(min_temp - max(Y_AXIS_PADDING,1)) # ensure at least 1 unit padding
+                            y_max_calc = math.ceil(max_temp + max(Y_AXIS_PADDING,1))
+                        if y_min_calc >= y_max_calc : # Ensure min is less than max
+                             y_min_calc = math.floor(y_max_calc - 1) if y_max_calc > 0 else -1
+                             y_max_calc = math.ceil(y_min_calc + 1) if y_min_calc < 100 else y_min_calc +1
                         y_axis_range = [y_min_calc, y_max_calc]
                     else:
                         y_axis_range = None
+
 
                     fig = go.Figure()
                     fig.add_trace(go.Scatter(
                         x=df['time_nyc'].tolist(), y=df['average_temp_f'].tolist(),
                         mode='lines', name='Temperature (°F)',
-                        line=dict(color='#4a90e2', width=2.5),
-                        fill='tozeroy', fillcolor='rgba(74, 144, 226, 0.1)'
+                        line=dict(color='#4a90e2', width=2.5), # Slightly thicker line
+                        fill='tozeroy', fillcolor='rgba(74, 144, 226, 0.1)' # Light fill
                     ))
-                    fig.update_layout(
-                        xaxis_title=None, yaxis_title='°F',
-                        yaxis_range=y_axis_range, 
-                        margin=dict(l=50, r=20, t=20, b=30), 
-                        hovermode="x unified", template="plotly_white",
-                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                        xaxis=dict(
-                            showgrid=True, 
-                            gridcolor='#f0f0f0',
-                            tickformat='%I:%M %p' # 12-hour format for x-axis ticks
-                        ),
-                        yaxis=dict(gridcolor='#e0e0e0'),
-                        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor='rgba(255,255,255,0.7)')
+                    fig.update_layout( # Minimal layout updates here, more in JS
+                        yaxis_range=y_axis_range
                     )
                     graph_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
                 else:
                     print(f"No valid data after timezone conversion/sort for the last {hours_to_show} hours.")
             else:
-                print(f"No valid data after cleaning for the last {hours_to_show} hours.")
+                 print(f"No valid data after cleaning for the last {hours_to_show} hours.")
         else:
             print(f"No data found in the last {hours_to_show} hours.")
 
     except Exception as e:
         print(f"Error fetching or processing data in index route: {e}", file=sys.stderr)
         flash(f"Error fetching or processing data: {e}", "warning")
-        graph_json = {} 
+        graph_json = {} # Ensure graph_json is defined
 
     return render_template_string(
         HTML_TEMPLATE,
@@ -462,7 +511,7 @@ def index():
         latest_doc_timestamp_iso=latest_doc_timestamp_iso,
         current_rolling_avg=current_rolling_avg_val,
         highest_rolling_avg_period=highest_rolling_avg_period_val,
-        highest_rolling_avg_time=highest_rolling_avg_time_val # Pass the formatted time
+        highest_rolling_avg_time=highest_rolling_avg_time_val
     )
 
 @app.route('/check_latest_data_timestamp')
@@ -503,11 +552,11 @@ def delete_old_data():
 
     try:
         days_old_str = request.form.get('days_old')
-        if days_old_str is None:
+        if days_old_str is None: # Should be caught by 'required' in HTML, but good to double check
             flash("Number of days not provided.", "danger")
             return redirect(redirect_url)
             
-        days_old = int(days_old_str)
+        days_old = int(days_old_str) # 'days_old' from form
 
         if days_old < 0:
             flash("Please provide a non-negative number of days.", "warning")
@@ -516,6 +565,8 @@ def delete_old_data():
         if days_old == 0:
             # Delete all data
             print(f"Attempting to delete ALL documents...")
+            # Add an additional confirmation for deleting all data if desired,
+            # though the onclick confirm already serves this purpose generally.
             result = coll.delete_many({}) # Empty filter deletes all
             deleted_count = result.deleted_count
             flash(f"Successfully deleted all {deleted_count} record(s).", "success")
@@ -540,5 +591,6 @@ if __name__ == '__main__':
     print("Starting Flask development server...")
     if connect_db() is None:
         print("\n--- CRITICAL: Cannot start Flask server due to DB connection failure at startup ---", file=sys.stderr)
-        sys.exit(1)
-    app.run(debug=True, host='127.0.0.1', port=5000, use_reloader=False)
+        sys.exit(1) # Critical exit if DB fails at start
+    # Consider adding host='0.0.0.0' to make it accessible on your local network if needed for testing on other devices
+    app.run(debug=True, host='127.0.0.1', port=5000, use_reloader=False) # use_reloader=False if auto-refresh in JS is preferred
