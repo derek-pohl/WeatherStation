@@ -196,24 +196,24 @@ HTML_TEMPLATE = """
                         <input class="form-check-input" type="checkbox" role="switch" id="autoRefreshSwitch" name="autorefresh" value="true" {% if autorefresh_enabled %}checked{% endif %} onchange="document.getElementById('settingsForm').submit()">
                         <label class="form-check-label ms-1" for="autoRefreshSwitch"><i class="bi bi-arrow-repeat me-1"></i>Auto-refresh</label>
                     </div>
+                    <div class="control-item">
+                        <label for="tempAdjustment" class="form-label"><i class="bi bi-thermometer-sun me-1"></i>Temp. Adjust (°F):</label>
+                        <input type="number" class="form-control form-control-sm" id="tempAdjustment" name="tempAdjustment" step="0.01" style="width: auto;" placeholder="e.g. -0.5">
+                    </div>
                     <noscript><button type="submit" class="btn btn-primary btn-sm">Update</button></noscript>
                 </form>
 
                 <div class="data-points-group">
                     <div class="control-item">
                         <span class="data-label"><i class="bi bi-activity me-1"></i>Current Avg (5m):</span>
-                        <span class="data-value">{% if current_rolling_avg %}{{ current_rolling_avg }} °F{% else %}N/A{% endif %}</span>
+                        <span class="data-value" id="currentRollingAvg" data-original-value="{% if current_rolling_avg %}{{ current_rolling_avg }}{% endif %}">{% if current_rolling_avg %}{{ current_rolling_avg }} °F{% else %}N/A{% endif %}</span>
                     </div>
                     <div class="control-item">
                         <span class="data-label"><i class="bi bi-graph-up-arrow me-1"></i>Highest Avg ({{selected_hours}}h):</span>
                         <span class="data-value">
-                            {% if highest_rolling_avg_period %}
-                                {{ highest_rolling_avg_period }} °F
-                                {% if highest_rolling_avg_time %}
-                                    <span class="time-suffix">at {{ highest_rolling_avg_time }}</span>
-                                {% endif %}
-                            {% else %}
-                                N/A
+                            <span id="highestRollingAvgPeriod" data-original-value="{% if highest_rolling_avg_period %}{{ highest_rolling_avg_period }}{% endif %}">{% if highest_rolling_avg_period %}{{ highest_rolling_avg_period }}{% else %}N/A{% endif %}</span>{% if highest_rolling_avg_period %} °F{% endif %}
+                            {% if highest_rolling_avg_time %}
+                                <span class="time-suffix">at {{ highest_rolling_avg_time }}</span>
                             {% endif %}
                         </span>
                     </div>
@@ -227,7 +227,7 @@ HTML_TEMPLATE = """
                     <div class="card-header"><i class="bi bi-thermometer-half"></i>Latest Reading</div>
                     <div class="card-body d-flex flex-column justify-content-center p-3">
                         {% if latest_reading %}
-                            <p class="stat-value mb-1">{{ latest_reading.temp_f }} °F</p>
+                            <p class="stat-value mb-1" id="latestReadingTemp" data-original-value="{{ latest_reading.temp_f }}">{{ latest_reading.temp_f }} °F</p>
                             <p class="timestamp mt-1 mb-0">Recorded: {{ latest_reading.time_nyc }} (NYC)</p>
                         {% else %}
                             <p class="text-muted my-auto">No recent data.</p>
@@ -243,13 +243,13 @@ HTML_TEMPLATE = """
                         {% if stats %}
                         <div class="row text-center w-100 gy-2 gy-sm-0">
                             <div class="col-12 col-sm-4">
-                                <strong>Min:</strong><br><span class="stat-value">{{ stats.min_f }}</span>
+                                <strong>Min:</strong><br><span class="stat-value" id="statsMinTemp" data-original-value="{{ stats.min_f }}">{{ stats.min_f }}</span>
                             </div>
                             <div class="col-12 col-sm-4">
-                                <strong>Avg:</strong><br><span class="stat-value">{{ stats.avg_f }}</span>
+                                <strong>Avg:</strong><br><span class="stat-value" id="statsAvgTemp" data-original-value="{{ stats.avg_f }}">{{ stats.avg_f }}</span>
                             </div>
                             <div class="col-12 col-sm-4">
-                                <strong>Max:</strong><br><span class="stat-value">{{ stats.max_f }}</span>
+                                <strong>Max:</strong><br><span class="stat-value" id="statsMaxTemp" data-original-value="{{ stats.max_f }}">{{ stats.max_f }}</span>
                             </div>
                         </div>
                         {% else %}
@@ -290,8 +290,14 @@ HTML_TEMPLATE = """
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     <script>
-        var graphData = {{ graph_json | safe }};
-        if (graphData && graphData.data && graphData.data.length > 0) {
+        var rawGraphDataFromFlask = {{ graph_json | safe }};
+        var originalGraphData = null; // To store the deep copy
+        var currentGraphLayout = null; // To store the layout
+
+        if (rawGraphDataFromFlask && rawGraphDataFromFlask.data && rawGraphDataFromFlask.data.length > 0) {
+            // Deep copy the initial graph data
+            originalGraphData = JSON.parse(JSON.stringify(rawGraphDataFromFlask));
+            
             var defaultLayout = {
                 autosize: true,
                 margin: { l: 40, r: 20, t: 20, b: 30 }, // Adjusted margins for mobile
@@ -303,9 +309,10 @@ HTML_TEMPLATE = """
                 yaxis: { gridcolor: '#e0e0e0', title: '°F' },
                 legend: { yanchor: "top", y: 0.99, xanchor: "left", x: 0.01, bgcolor: 'rgba(255,255,255,0.7)' }
             };
-            var finalLayout = Object.assign({}, defaultLayout, graphData.layout); // Merge with incoming layout
+            // Merge with incoming layout from Flask, prioritizing Flask's layout specifics
+            currentGraphLayout = Object.assign({}, defaultLayout, originalGraphData.layout); 
 
-            Plotly.newPlot('plotly-graph', graphData.data, finalLayout, {responsive: true});
+            Plotly.newPlot('plotly-graph', originalGraphData.data, currentGraphLayout, {responsive: true});
             
             window.addEventListener('resize', function() {
                 Plotly.Plots.resize('plotly-graph');
@@ -349,6 +356,129 @@ HTML_TEMPLATE = """
         if (autoRefreshEnabled) {
             console.log("Auto-refresh enabled. Checking every 60 seconds. Current page data timestamp:", currentPageTimestampISO);
             refreshIntervalId = setInterval(checkForNewData, 60000); // Check every 60 seconds
+        }
+
+        // Temperature Adjustment Handling
+        const tempAdjustmentInput = document.getElementById('tempAdjustment');
+
+        function applyTemperatureAdjustment() {
+            const adjustmentStr = localStorage.getItem('tempAdjustment');
+            const adjustment = parseFloat(adjustmentStr);
+            const tempAdjustment = isNaN(adjustment) || adjustmentStr === '' ? 0.0 : adjustment;
+
+            // Update text elements
+            const elementsToAdjust = [
+                { id: 'latestReadingTemp', suffix: ' °F' },
+                { id: 'statsMinTemp', suffix: '' },
+                { id: 'statsAvgTemp', suffix: '' },
+                { id: 'statsMaxTemp', suffix: '' },
+                { id: 'currentRollingAvg', suffix: ' °F' },
+                { id: 'highestRollingAvgPeriod', suffix: ' °F' }
+            ];
+
+            elementsToAdjust.forEach(function(elementInfo) {
+                const el = document.getElementById(elementInfo.id);
+                if (el) {
+                    const originalValueStr = el.getAttribute('data-original-value');
+                    if (originalValueStr && originalValueStr !== 'N/A' && originalValueStr.trim() !== '') {
+                        const originalValue = parseFloat(originalValueStr);
+                        if (!isNaN(originalValue)) {
+                            const adjustedValue = originalValue + tempAdjustment;
+                            let textContent = adjustedValue.toFixed(2);
+                            if (elementInfo.id === 'highestRollingAvgPeriod' && el.textContent.trim() === 'N/A') {
+                                // Handled by originalValueStr check, but defensive
+                            } else if (elementInfo.id === 'currentRollingAvg' && el.textContent.trim() === 'N/A') {
+                                // Handled by originalValueStr check
+                            } else if (elementInfo.suffix) {
+                               textContent = adjustedValue.toFixed(2) + elementInfo.suffix;
+                            } else {
+                                textContent = adjustedValue.toFixed(2);
+                            }
+                            el.innerText = textContent;
+                        }
+                    } else if (el.getAttribute('data-original-value') === '' && (elementInfo.id === 'currentRollingAvg' || elementInfo.id === 'highestRollingAvgPeriod')) {
+                        el.innerText = 'N/A';
+                    }
+                }
+            });
+
+            // Adjust and update graph data
+            if (originalGraphData && originalGraphData.data && originalGraphData.data.length > 0 && typeof Plotly !== 'undefined') {
+                let newGraphDataTraces = [];
+                originalGraphData.data.forEach(function(trace) {
+                    let newTrace = JSON.parse(JSON.stringify(trace)); // Deep copy original trace
+                    if (newTrace.y && Array.isArray(newTrace.y)) {
+                        newTrace.y = newTrace.y.map(function(yVal) {
+                            return (typeof yVal === 'number') ? yVal + tempAdjustment : yVal;
+                        });
+                    }
+                    newGraphDataTraces.push(newTrace);
+                });
+
+                // Update yaxis range based on new data
+                let yMin = Infinity, yMax = -Infinity;
+                newGraphDataTraces.forEach(function(trace) {
+                    if (trace.y && Array.isArray(trace.y)) {
+                        trace.y.forEach(function(yVal) {
+                            if (typeof yVal === 'number') {
+                                if (yVal < yMin) yMin = yVal;
+                                if (yVal > yMax) yMax = yVal;
+                            }
+                        });
+                    }
+                });
+                
+                let newLayout = JSON.parse(JSON.stringify(currentGraphLayout)); // Deep copy layout
+
+                if (isFinite(yMin) && isFinite(yMax)) {
+                    const Y_AXIS_PADDING_JS = {{Y_AXIS_PADDING}}; // Get Python var
+                    let yMinCalc = Math.floor(yMin - Y_AXIS_PADDING_JS);
+                    let yMaxCalc = Math.ceil(yMax + Y_AXIS_PADDING_JS);
+                     if (yMin === yMax) {
+                        yMinCalc = Math.floor(yMin - Math.max(Y_AXIS_PADDING_JS, 1));
+                        yMaxCalc = Math.ceil(yMax + Math.max(Y_AXIS_PADDING_JS, 1));
+                    }
+                    if (yMinCalc >= yMaxCalc) {
+                        yMinCalc = Math.floor(yMaxCalc -1);
+                        yMaxCalc = Math.ceil(yMinCalc + 1);
+                    }
+                    newLayout.yaxis.range = [yMinCalc, yMaxCalc];
+                } else {
+                     newLayout.yaxis.range = originalGraphData.layout.yaxis && originalGraphData.layout.yaxis.range ? originalGraphData.layout.yaxis.range : null; // Fallback
+                }
+
+                Plotly.react('plotly-graph', newGraphDataTraces, newLayout);
+            }
+        }
+
+        if (tempAdjustmentInput) {
+            // Load initial value from localStorage if it exists
+            const storedTempAdjustment = localStorage.getItem('tempAdjustment');
+            if (storedTempAdjustment !== null) {
+                tempAdjustmentInput.value = storedTempAdjustment;
+                applyTemperatureAdjustment(); // Apply on page load if value exists
+            }
+
+            tempAdjustmentInput.addEventListener('input', function() {
+                let value = this.value.trim();
+                let parsedValue;
+
+                if (value === '') {
+                    parsedValue = ''; // Store as empty string if input is empty
+                    localStorage.setItem('tempAdjustment', parsedValue);
+                } else {
+                    parsedValue = parseFloat(value);
+                    if (!isNaN(parsedValue)) {
+                        localStorage.setItem('tempAdjustment', parsedValue);
+                    } else {
+                        // Handle invalid input if necessary, e.g., clear storage or set to 0
+                        // For now, we'll just not update localStorage if parsing fails
+                        console.warn('Invalid temperature adjustment input:', value);
+                        // localStorage.setItem('tempAdjustment', '0'); // Optional: default to 0 or clear
+                    }
+                }
+                applyTemperatureAdjustment();
+            });
         }
     </script>
 </body>
